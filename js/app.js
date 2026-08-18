@@ -385,17 +385,26 @@
         '<span class="review-result-tag tag-wrong">错题</span>' +
         '<span class="q-type" style="background:var(--red-light);color:var(--red)">答错 ' + entry.wrongCount + ' 次</span>' +
       "</div>";
+    if (q.figParts && q.figParts.kind === "single") {
+      html += '<div class="q-figure"><img src="' + q.figParts.srcs[0] + '" alt="题目图"></div>';
+    } else if (q.figParts && q.figParts.kind === "figs") {
+      html += '<div class="q-figure-strip">' + q.figParts.srcs.map(function (s) { return '<img src="' + s + '" alt="图形">'; }).join("") + "</div>";
+    }
     html += '<div class="review-stem">' + renderStem(stemDisplay(q)) + "</div>";
     if (q.image) {
       html += '<div class="q-image"><img src="' + q.image.src + '" loading="lazy"><div class="q-image-caption">原卷第 ' + q.image.page + " 页截图</div></div>";
     }
-    if (isObjective(sec) && q.options.length) {
+    var wbOpts = q.options;
+    if (q.figParts && q.figParts.kind === "opts") {
+      wbOpts = q.figParts.srcs.map(function (s, i) { return { key: "ABCD"[i], img: s, text: "" }; });
+    }
+    if (isObjective(sec) && wbOpts.length) {
       html += '<div class="review-options">';
-      q.options.forEach(function (o) {
+      wbOpts.forEach(function (o) {
         var isRight = String(q.answer).indexOf(o.key) >= 0;
         var isMine = String(entry.lastAnswer).indexOf(o.key) >= 0;
         var cls = isRight ? "is-correct" : (isMine ? "is-wrong" : "");
-        html += '<div class="review-opt ' + cls + '"><span class="k">' + o.key + ".</span><span>" + esc(o.text) + "</span></div>";
+        html += '<div class="review-opt ' + cls + '"><span class="k">' + o.key + ".</span><span>" + (o.img ? '<img src="' + o.img + '" alt="选项' + o.key + '">' : esc(o.text)) + "</span></div>";
       });
       html += "</div>";
     }
@@ -637,9 +646,23 @@
       imageHtml = '<div class="q-image"><img src="' + q.image.src + '" alt="原题图片" loading="lazy"><div class="q-image-caption">' + cap + "</div></div>";
     }
 
-    // 选项数据（图片题用字母键补齐）
+    // 图形推理：题目图 / 选项图
+    var figHtml = "";
+    if (q.figParts) {
+      if (q.figParts.kind === "single") {
+        figHtml = '<div class="q-figure"><img src="' + q.figParts.srcs[0] + '" alt="题目图"></div>';
+      } else if (q.figParts.kind === "figs") {
+        figHtml = '<div class="q-figure-strip">' + q.figParts.srcs.map(function (s) { return '<img src="' + s + '" alt="图形">'; }).join("") + "</div>";
+      }
+    }
+
+    // 选项数据（图片题用字母键补齐；图形题选项图为独立选项）
     var optsData = q.options;
-    if (isObjective(sec) && !optsData.length) {
+    if (q.figParts && q.figParts.kind === "opts") {
+      optsData = q.figParts.srcs.map(function (s, i) {
+        return { key: "ABCD"[i], img: s, text: "（图片选项）" };
+      });
+    } else if (isObjective(sec) && !optsData.length && !(q.figParts && q.figParts.kind === "opts")) {
       var letters = q.answer ? String(q.answer).split("") : ["A", "B", "C", "D"];
       var uniq = []; letters.forEach(function (L) { if (uniq.indexOf(L) < 0) uniq.push(L); });
       if (uniq.length < 2) uniq = ["A", "B", "C", "D"];
@@ -663,6 +686,12 @@
       } else if (isSel(o.key)) {
         cls += " selected";
       }
+      if (o.img) {
+        return '<div class="' + cls + ' opt-img" data-key="' + o.key + '">' +
+          '<span class="option-key">' + o.key + "</span>" +
+          '<img src="' + o.img + '" alt="选项' + o.key + '">' +
+          '<span class="option-text">' + esc(o.text) + "</span></div>";
+      }
       return '<div class="' + cls + '" data-key="' + o.key + '">' +
         '<span class="option-key">' + o.key + "</span>" +
         '<span class="option-text">' + esc(o.text) + "</span></div>";
@@ -675,7 +704,7 @@
       if (feedbackOn && sec.type === "multiple" && !locked) {
         optionsHtml += '<button class="btn btn-primary btn-confirm-multi" id="btn-confirm-multi">确认答案</button>';
       }
-      if (feedbackOn && !q.options.length) {
+      if (feedbackOn && !q.options.length && !(q.figParts && q.figParts.kind === "opts")) {
         optionsHtml += '<div style="font-size:12px;color:var(--gray);margin-top:8px">本题选项为图片，请在图片中查看选项内容，再点击对应字母作答。</div>';
       }
       if (locked) {
@@ -735,6 +764,7 @@
         materialHtml +
         imageHtml +
         stemHtml +
+        figHtml +
         optionsHtml +
         feedbackHtml +
         (state.annotMode ? '<canvas class="annot-canvas active" id="annot-canvas"></canvas>' : "") +
