@@ -387,6 +387,8 @@
       "</div>";
     if (q.figParts && q.figParts.kind === "single") {
       html += '<div class="q-figure"><img src="' + q.figParts.srcs[0] + '" alt="题目图"></div>';
+    } else if (q.figParts && q.figParts.kind === "split") {
+      html += '<div class="q-figure"><img src="' + q.figParts.qSrc + '" alt="题目图"></div>';
     } else if (q.figParts && q.figParts.kind === "figs") {
       html += '<div class="q-figure-strip">' + q.figParts.srcs.map(function (s) { return '<img src="' + s + '" alt="图形">'; }).join("") + "</div>";
     }
@@ -395,8 +397,9 @@
       html += '<div class="q-image"><img src="' + q.image.src + '" loading="lazy"><div class="q-image-caption">原卷第 ' + q.image.page + " 页截图</div></div>";
     }
     var wbOpts = q.options;
-    if (q.figParts && q.figParts.kind === "opts") {
-      wbOpts = q.figParts.srcs.map(function (s, i) { return { key: "ABCD"[i], img: s, text: "" }; });
+    if (q.figParts && (q.figParts.kind === "opts" || q.figParts.kind === "split")) {
+      var wopts = q.figParts.kind === "opts" ? q.figParts.srcs : q.figParts.opts;
+      wbOpts = wopts.map(function (s, i) { return { key: "ABCD"[i], img: s, text: "" }; });
     }
     if (isObjective(sec) && wbOpts.length) {
       html += '<div class="review-options">';
@@ -651,6 +654,8 @@
     if (q.figParts) {
       if (q.figParts.kind === "single") {
         figHtml = '<div class="q-figure"><img src="' + q.figParts.srcs[0] + '" alt="题目图"></div>';
+      } else if (q.figParts.kind === "split") {
+        figHtml = '<div class="q-figure"><img src="' + q.figParts.qSrc + '" alt="题目图"></div>';
       } else if (q.figParts.kind === "figs") {
         figHtml = '<div class="q-figure-strip">' + q.figParts.srcs.map(function (s) { return '<img src="' + s + '" alt="图形">'; }).join("") + "</div>";
       }
@@ -658,11 +663,12 @@
 
     // 选项数据（图片题用字母键补齐；图形题选项图为独立选项）
     var optsData = q.options;
-    if (q.figParts && q.figParts.kind === "opts") {
-      optsData = q.figParts.srcs.map(function (s, i) {
+    if (q.figParts && (q.figParts.kind === "opts" || q.figParts.kind === "split")) {
+      var optList = q.figParts.kind === "opts" ? q.figParts.srcs : q.figParts.opts;
+      optsData = optList.map(function (s, i) {
         return { key: "ABCD"[i], img: s, text: "（图片选项）" };
       });
-    } else if (isObjective(sec) && !optsData.length && !(q.figParts && q.figParts.kind === "opts")) {
+    } else if (isObjective(sec) && !optsData.length && !(q.figParts && (q.figParts.kind === "opts" || q.figParts.kind === "split"))) {
       var letters = q.answer ? String(q.answer).split("") : ["A", "B", "C", "D"];
       var uniq = []; letters.forEach(function (L) { if (uniq.indexOf(L) < 0) uniq.push(L); });
       if (uniq.length < 2) uniq = ["A", "B", "C", "D"];
@@ -704,7 +710,7 @@
       if (feedbackOn && sec.type === "multiple" && !locked) {
         optionsHtml += '<button class="btn btn-primary btn-confirm-multi" id="btn-confirm-multi">确认答案</button>';
       }
-      if (feedbackOn && !q.options.length && !(q.figParts && q.figParts.kind === "opts")) {
+      if (feedbackOn && !q.options.length && !(q.figParts && (q.figParts.kind === "opts" || q.figParts.kind === "split"))) {
         optionsHtml += '<div style="font-size:12px;color:var(--gray);margin-top:8px">本题选项为图片，请在图片中查看选项内容，再点击对应字母作答。</div>';
       }
       if (locked) {
