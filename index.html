@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>交投模考 · 黑龙江省交通投资集团招聘考试</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+</head>
+<body>
+
+<!-- ============ 首页 ============ -->
+<div id="view-home" class="view">
+  <header class="home-header">
+    <div class="home-header-inner">
+      <div class="brand">
+        <div class="brand-logo">交投模考</div>
+        <div class="brand-sub">黑龙江省交通投资集团招聘考试 · 全真模拟练习</div>
+      </div>
+      <div class="home-stat-cards">
+        <div class="stat-card"><div class="stat-num" id="stat-exams">0</div><div class="stat-label">套试卷</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-questions">0</div><div class="stat-label">客观题</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-done">0</div><div class="stat-label">已完成</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-wrong">0</div><div class="stat-label">错题</div></div>
+      </div>
+      <div class="practice-stats">练习统计：已答 <b id="ps-answered">0</b> 题 · 正确 <b id="ps-correct">0</b> 题 · 正确率 <b id="ps-rate">--</b></div>
+    </div>
+  </header>
+  <main class="container">
+    <div class="section-title">选择试卷</div>
+    <div id="exam-list" class="exam-list"></div>
+    <div class="wrongbook-panel" id="wrongbook-panel">
+      <div class="wb-panel-head">
+        <div class="wb-panel-title">📒 错题本</div>
+        <div class="wb-panel-actions">
+          <button class="btn btn-ghost" id="btn-wb-redo-all">全部重做</button>
+          <button class="btn btn-primary" id="btn-wb-open">进入错题本</button>
+        </div>
+      </div>
+      <div class="wb-panel-body" id="wb-panel-body">暂无错题</div>
+    </div>
+    <div class="tip-box">
+      <div class="tip-title">📌 使用说明</div>
+      <ul>
+        <li>客观题（单选 / 多选 / 判断）自动判分，交卷后即时出分并附答案解析。</li>
+        <li>案例分析题、材料写作题为主观题，支持在线作答，交卷后展示参考答案供自评。</li>
+        <li>含图片的题目（图形推理、资料图表等）以「原卷页截图」方式展示。</li>
+        <li>答题进度自动保存在本机浏览器（localStorage），关闭页面后仍可继续。</li>
+        <li>数据来源：2024 / 2025 年真题（考生回忆版）与 2026 年模拟卷，仅供学习交流。</li>
+      </ul>
+    </div>
+  </main>
+</div>
+
+<!-- ============ 答题页 ============ -->
+<div id="view-exam" class="view hidden">
+  <header class="exam-header">
+    <button class="icon-btn" id="btn-back-home" title="返回首页">‹</button>
+    <div class="exam-title-wrap">
+      <div class="exam-title" id="exam-title"></div>
+      <div class="exam-sub" id="exam-sub"></div>
+    </div>
+    <div class="timer" id="timer" title="剩余时间">02:00:00</div>
+    <div class="acc-chip hidden" id="acc-chip" title="本次作答正确率">正确率 --</div>
+    <button class="btn btn-feedback" id="btn-feedback" title="开启后：答一题立刻判对错并显示解析">即时反馈 开</button>
+    <button class="btn btn-primary btn-submit" id="btn-submit">交卷</button>
+  </header>
+  <div class="exam-body">
+    <main class="question-pane" id="question-pane"></main>
+    <aside class="answer-sheet" id="answer-sheet"></aside>
+  </div>
+  <!-- 移动端答题卡抽屉 -->
+  <div class="sheet-drawer-mask hidden" id="sheet-mask"></div>
+  <div class="sheet-drawer hidden" id="sheet-drawer">
+    <div class="drawer-head">
+      <span>答题卡</span>
+      <button class="icon-btn" id="btn-close-sheet">×</button>
+    </div>
+    <div id="drawer-sheet-body"></div>
+    <button class="btn btn-primary btn-block" id="btn-drawer-submit">交卷</button>
+  </div>
+  <button class="fab-sheet" id="btn-open-sheet" title="答题卡">答题卡 <span id="fab-count">0/0</span></button>
+</div>
+
+<!-- ============ 成绩页 ============ -->
+<div id="view-result" class="view hidden">
+  <header class="result-header">
+    <button class="icon-btn" id="btn-result-home">‹</button>
+    <div class="exam-title-wrap">
+      <div class="exam-title" id="result-title"></div>
+      <div class="exam-sub" id="result-sub"></div>
+    </div>
+    <button class="btn btn-ghost" id="btn-retry">重新作答</button>
+  </header>
+  <main class="container result-body">
+    <div class="result-top">
+      <div class="score-card">
+        <div class="score-label">客观题得分</div>
+        <div class="score-value"><span id="score-num">0</span><span class="score-total" id="score-total">/0</span></div>
+        <div class="score-extra" id="score-extra"></div>
+      </div>
+      <div class="result-stats">
+        <div class="rstat"><div class="rstat-num correct" id="r-correct">0</div><div class="rstat-label">答对</div></div>
+        <div class="rstat"><div class="rstat-num wrong" id="r-wrong">0</div><div class="rstat-label">答错</div></div>
+        <div class="rstat"><div class="rstat-num skip" id="r-skip">0</div><div class="rstat-label">未答</div></div>
+        <div class="rstat"><div class="rstat-num time" id="r-time">0</div><div class="rstat-label">用时</div></div>
+      </div>
+    </div>
+    <div class="section-breakdown" id="section-breakdown"></div>
+    <div class="result-nav">
+      <div class="filter-tabs" id="filter-tabs">
+        <button class="filter-tab active" data-f="all">全部</button>
+        <button class="filter-tab" data-f="correct">答对</button>
+        <button class="filter-tab" data-f="wrong">答错</button>
+        <button class="filter-tab" data-f="skip">未答</button>
+        <button class="filter-tab" data-f="flagged">标记</button>
+      </div>
+    </div>
+    <div id="review-list" class="review-list"></div>
+  </main>
+</div>
+
+<!-- ============ 错题本 ============ -->
+<div id="view-wrongbook" class="view hidden">
+  <header class="result-header">
+    <button class="icon-btn" id="btn-wb-back">‹</button>
+    <div class="exam-title-wrap">
+      <div class="exam-title">错题本</div>
+      <div class="exam-sub" id="wb-sub"></div>
+    </div>
+    <button class="btn btn-ghost" id="btn-wb-redo-all-top">全部重做</button>
+  </header>
+  <main class="container result-body">
+    <div class="wb-stats" id="wb-stats"></div>
+    <div class="result-nav"><div class="filter-tabs" id="wb-filters">
+      <button class="filter-tab active" data-wf="all">全部</button>
+      <button class="filter-tab" data-wf="redo">待重做</button>
+    </div></div>
+    <div id="wb-list" class="review-list"></div>
+  </main>
+</div>
+
+<!-- 交卷确认弹窗 -->
+<div class="modal-mask hidden" id="submit-modal">
+  <div class="modal">
+    <div class="modal-title">确认交卷？</div>
+    <div class="modal-body">
+      <div class="modal-stat"><span>已作答</span><b id="m-answered">0</b></div>
+      <div class="modal-stat"><span>未作答</span><b id="m-unanswered">0</b></div>
+      <div class="modal-stat"><span>已标记</span><b id="m-flagged">0</b></div>
+      <p class="modal-warn" id="m-warn"></p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="btn-cancel-submit">继续答题</button>
+      <button class="btn btn-primary" id="btn-confirm-submit">确认交卷</button>
+    </div>
+  </div>
+</div>
+
+<!-- 时间到提示 -->
+<div class="modal-mask hidden" id="timeup-modal">
+  <div class="modal">
+    <div class="modal-title">⏰ 考试时间到</div>
+    <div class="modal-body"><p>已自动为你交卷，正在生成成绩报告…</p></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="btn-timeup-ok">查看报告</button>
+    </div>
+  </div>
+</div>
+
+<!-- 轻提示 -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
