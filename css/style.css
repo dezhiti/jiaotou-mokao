@@ -360,9 +360,15 @@ img { max-width: 100%; }
   .stat-num { font-size: 20px; }
   .home-stat-cards { gap: 8px; }
 }
-@media (max-width: 420px) {
-  .exam-sub { display: none; }
-  .exam-title { font-size: 13.5px; }
+.exam-title, .exam-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+@media (max-width: 640px) {
+  .exam-header { gap: 6px; padding: 6px 8px; }
+  .exam-title { font-size: 13px; }
+  .exam-sub { font-size: 10px; }
+  .btn-feedback { font-size: 11px; padding: 5px 8px; }
+  .timer { font-size: 13px; padding: 4px 8px; }
+  .btn-submit { font-size: 12px; padding: 6px 10px; }
+  .icon-btn { width: 30px; height: 30px; font-size: 20px; }
 }
 
 /* 即时反馈 */
@@ -442,3 +448,47 @@ img { max-width: 100%; }
 .wb-actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
 .wb-actions .btn { padding: 7px 16px; font-size: 13px; }
 .wb-empty { text-align: center; color: var(--gray); padding: 50px 0; font-size: 15px; }
+
+/* ===== 填空位置 ===== */
+.blank {
+  display: inline-block; min-width: 3.2em; height: 1.05em;
+  border-bottom: 2.5px solid var(--primary); margin: 0 2px;
+  vertical-align: baseline; background: rgba(47,107,255,.05); border-radius: 2px;
+}
+
+/* ===== 答案解析分段 ===== */
+.analysis-box p { margin: 0 0 8px; }
+.analysis-box p:last-child { margin-bottom: 0; }
+.analysis-box .ana-para { margin: 0 0 8px; }
+.analysis-box .ana-para:last-child { margin-bottom: 0; }
+
+/* ===== 时间暂停 ===== */
+.timer.paused { background: var(--orange-light); color: #d97706; }
+.pause-hint {
+  margin-top: 10px; font-size: 13px; font-weight: 600;
+  color: #d97706; background: var(--orange-light);
+  border: 1px solid #ffd9a8; border-radius: 8px; padding: 8px 12px;
+}
+
+/* ===== 题干批注（圈画） ===== */
+.q-content { position: relative; }
+.annot-canvas {
+  position: absolute; left: 0; top: 0; z-index: 6;
+  pointer-events: none; touch-action: none;
+}
+.annot-canvas.active { pointer-events: auto; cursor: crosshair; }
+.annot-toolbar {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  margin-top: 12px; padding: 8px 10px; background: #fff;
+  border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+  position: sticky; top: 0; z-index: 8;
+}
+.annot-swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; outline: 1px solid var(--border); cursor: pointer; padding: 0; }
+.annot-swatch.active { outline: 2px solid var(--text); }
+.annot-tool-btn {
+  padding: 5px 12px; font-size: 12.5px; border-radius: 14px;
+  border: 1px solid var(--border); background: #fff; color: var(--text-2); font-weight: 600;
+}
+.annot-tool-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.annot-hint { font-size: 12px; color: var(--gray); }
+.q-flag-btn.anno-on { background: var(--primary); color: #fff; border-color: var(--primary); }
