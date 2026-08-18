@@ -91,6 +91,16 @@
       if (c === false) addWrong(state.exam.id, item.idx, val);
     }
     updateAccChip();
+    // 即时反馈：答对自动跳下一题；答错暂停计时以便阅读解析
+    if (state.feedback) {
+      if (c === true) {
+        if (state.autoAdvance) clearTimeout(state.autoAdvance);
+        state.autoAdvance = setTimeout(function () { goTo(state.current + 1); }, 900);
+      } else if (state.timerEnabled) {
+        state.paused = true;
+        updateTimerUI();
+      }
+    }
   }
 
   /* 本次作答正确率（即时反馈模式） */
@@ -160,6 +170,44 @@
     }
     return q.stem;
   }
+  /* 选词填空：把同一行内的空格还原为横线填空位置（换行处的空格是排版残留，不处理） */
+  var FILL_RE = /([\u4e00-\u9fff，。；：、？！])(\s+)([\u4e00-\u9fff，。；：、？！])/g;
+  function renderStem(stem) {
+    var html = esc(stem);
+    if (/填入|填人|横线|最恰当|应填/.test(stem)) {
+      html = html.replace(FILL_RE, function (m, a, sp, b) {
+        if (sp.indexOf("\n") >= 0) return a + sp + b;
+        return a + '<span class="blank"></span>' + b;
+      });
+    }
+    return html;
+  }
+  function groupSentences(text) {
+    var sents = text.split(/(?<=[。！？!?；;])/).map(function (s) { return s.trim(); }).filter(Boolean);
+    var out = [];
+    for (var i = 0; i < sents.length; i += 3) out.push(sents.slice(i, i + 3).join(""));
+    return out.length ? out : [text];
+  }
+  /* 把参考答案/解析按文意分成段落 */
+  function toParagraphs(text, kind) {
+    if (!text) return [];
+    var flat = String(text).replace(/\s+/g, " ");
+    if (kind === "analysis") {
+      var parts = flat.split(/(?=[ABCD]\s*项)/).map(function (s) { return s.trim(); }).filter(Boolean);
+      if (parts.length >= 2) {
+        var out = [];
+        parts.forEach(function (pt) { out = out.concat(groupSentences(pt)); });
+        return out;
+      }
+      return groupSentences(flat);
+    }
+    if (kind === "ref") {
+      var parts2 = flat.split(/(?=\d+[.、]\s*)/).map(function (s) { return s.trim(); }).filter(Boolean);
+      if (parts2.length >= 2) return parts2;
+      return groupSentences(flat);
+    }
+    return groupSentences(flat);
+  }
   function typeName(sec) {
     var map = { single: "单选题", multiple: "多选题", judge: "判断题", case: "案例分析题", writing: "材料写作题" };
     return map[sec.type] || sec.type;
@@ -196,8 +244,14 @@
     locked: {},                 // idx -> true（已判定并锁定）
     feedback: true,             // 即时反馈开关
     timerEnabled: true,         // 是否倒计时（错题重做时关闭）
+    paused: false,              // 答错后暂停计时
     remaining: 0,
     timerId: null,
+    autoAdvance: null,          // 答对自动跳题定时器
+    annots: {},                 // 题干批注: idx -> [strokes]
+    annotMode: false,           // 批注模式开关
+    annotTool: "pen",           // pen | highlight | eraser
+    annotColor: "#ef4444",
     doneResult: null
   };
 
@@ -331,7 +385,7 @@
         '<span class="review-result-tag tag-wrong">错题</span>' +
         '<span class="q-type" style="background:var(--red-light);color:var(--red)">答错 ' + entry.wrongCount + ' 次</span>' +
       "</div>";
-    html += '<div class="review-stem">' + esc(stemDisplay(q)) + "</div>";
+    html += '<div class="review-stem">' + renderStem(stemDisplay(q)) + "</div>";
     if (q.image) {
       html += '<div class="q-image"><img src="' + q.image.src + '" loading="lazy"><div class="q-image-caption">原卷第 ' + q.image.page + " 页截图</div></div>";
     }
@@ -354,7 +408,8 @@
         '<span class="right">正确答案：' + esc(rightTxt) + "</span>" +
       "</div>";
     if (q.analysis) {
-      html += '<div class="analysis-box"><div class="analysis-title">解析</div><pre>' + esc(q.analysis) + "</pre></div>";
+      var ap = toParagraphs(q.analysis, "analysis");
+      html += '<div class="analysis-box"><div class="analysis-title">解析</div>' + ap.map(function (pt) { return '<div class="ana-para">' + esc(pt) + "</div>"; }).join("") + "</div>";
     }
     html +=
       '<div class="wb-actions">' +
@@ -503,6 +558,7 @@
     if (!state.timerEnabled) { updateTimerUI(); return; }
     state.timerId = setInterval(function () {
       state.remaining--;
+      if (state.paused) { updateTimerUI(); return; }
       if (state.remaining <= 0) {
         state.remaining = 0;
         updateTimerUI();
@@ -524,8 +580,16 @@
     if (state.exam && state.exam.isRedo) {
       el.textContent = "错题重做";
       el.classList.remove("warn");
+      el.classList.remove("paused");
       return;
     }
+    if (state.paused) {
+      el.textContent = "⏸ 已暂停";
+      el.classList.add("paused");
+      el.classList.remove("warn");
+      return;
+    }
+    el.classList.remove("paused");
     el.textContent = fmtTime(state.remaining);
     el.classList.toggle("warn", state.remaining <= 300 && state.remaining > 0);
   }
@@ -549,10 +613,11 @@
 
     var flagCls = state.flags.indexOf(item.idx) >= 0 ? "flagged" : "";
     var flagTxt = state.flags.indexOf(item.idx) >= 0 ? "已标记" : "标记";
+    var annoCls = state.annotMode ? "anno-on" : "";
 
-    var stemHtml = '<div class="q-stem">' + esc(stemDisplay(q)) + "</div>";
+    var stemHtml = '<div class="q-stem">' + renderStem(stemDisplay(q)) + "</div>";
 
-    // 材料
+    // 材料（置于题干上方）
     var materialHtml = "";
     if (q.materialId) {
       var mat = sec.materials.find(function (m) { return m.id === q.materialId; });
@@ -616,13 +681,16 @@
       if (locked) {
         var c = isCorrect(sec, q, val);
         var rightTxt = sec.type === "judge" ? (q.answer === "A" ? "A（正确）" : "B（错误）") : String(q.answer);
+        var paras = toParagraphs(q.analysis, "analysis");
+        var anaHtml = paras.length
+          ? '<div class="analysis-box"><div class="analysis-title">参考答案与解析</div>' + paras.map(function (pt) { return '<div class="ana-para">' + esc(pt) + "</div>"; }).join("") + "</div>"
+          : "";
         feedbackHtml =
           (c === true
             ? '<div class="q-feedback correct">✓ 回答正确！</div>'
-            : '<div class="q-feedback wrong">✗ 回答错误，正确答案：<span class="right-ans">' + esc(rightTxt) + "</span></div>") +
-          (q.analysis
-            ? '<div class="analysis-box"><div class="analysis-title">参考答案与解析</div><pre>' + esc(q.analysis) + "</pre></div>"
-            : "");
+            : '<div class="q-feedback wrong">✗ 回答错误，正确答案：<span class="right-ans">' + esc(rightTxt) + "</span></div>" +
+              (state.timerEnabled && !state.exam.isRedo ? '<div class="pause-hint">⏸ 时间已暂停，阅读解析后点击「下一题」继续</div>' : "")) +
+          anaHtml;
       }
     } else {
       optionsHtml =
@@ -633,18 +701,44 @@
       }
     }
 
+    // 批注工具栏（批注模式下显示）
+    var annotHtml = "";
+    if (state.annotMode) {
+      var swatches = [
+        { color: "#ef4444", name: "红" }, { color: "#2f6bff", name: "蓝" },
+        { color: "#1f2937", name: "黑" }, { color: "#ffd54f", name: "荧光" }
+      ];
+      annotHtml =
+        '<div class="annot-toolbar">' +
+          '<span class="annot-hint">✏️ 批注：</span>' +
+          swatches.map(function (s) {
+            return '<button class="annot-swatch' + (state.annotColor === s.color ? " active" : "") + '" data-color="' + s.color + '" style="background:' + s.color + '" title="' + s.name + '"></button>';
+          }).join("") +
+          '<button class="annot-tool-btn' + (state.annotTool === "pen" ? " active" : "") + '" data-tool="pen">画笔</button>' +
+          '<button class="annot-tool-btn' + (state.annotTool === "highlight" ? " active" : "") + '" data-tool="highlight">荧光笔</button>' +
+          '<button class="annot-tool-btn' + (state.annotTool === "eraser" ? " active" : "") + '" data-tool="eraser">橡皮</button>' +
+          '<button class="annot-tool-btn" id="annot-clear">清空</button>' +
+          '<button class="annot-tool-btn" id="annot-done">完成</button>' +
+        "</div>";
+    }
+
     pane.innerHTML =
       '<div class="q-head">' +
         '<span class="q-num">' + (item.idx + 1) + ".</span>" +
         '<span class="q-type type-' + sec.type + '">' + typeName(sec) + "</span>" +
         '<span class="q-type" style="background:var(--gray-light);color:var(--gray)">' + (isSubj ? "主观题" : "客观题 " + (SCORE[sec.type] || 0) + "分") + "</span>" +
+        '<button class="q-flag-btn ' + annoCls + '" id="btn-anno">✏️ 批注</button>' +
         '<button class="q-flag-btn ' + flagCls + '" id="btn-flag">⛳ ' + flagTxt + "</button>" +
       "</div>" +
-      stemHtml +
-      materialHtml +
-      imageHtml +
-      optionsHtml +
-      feedbackHtml +
+      '<div class="q-content" id="q-content">' +
+        (state.annotMode ? annotHtml : "") +
+        materialHtml +
+        imageHtml +
+        stemHtml +
+        optionsHtml +
+        feedbackHtml +
+        (state.annotMode ? '<canvas class="annot-canvas active" id="annot-canvas"></canvas>' : "") +
+      "</div>" +
       '<div class="q-nav">' +
         '<button class="btn btn-ghost" id="btn-prev"' + (state.current === 0 ? " disabled" : "") + ">‹ 上一题</button>" +
         '<button class="btn btn-ghost" id="btn-next"' + (state.current === state.flat.list.length - 1 ? " disabled" : "") + ">下一题 ›</button>" +
@@ -706,9 +800,10 @@
           inline.remove();
           refBtn.textContent = "📖 查看参考答案";
         } else {
+          var paras = toParagraphs(q.refAnswer, "ref");
           var div = document.createElement("div");
           div.className = "ref-inline";
-          div.textContent = q.refAnswer;
+          div.innerHTML = paras.map(function (pt) { return "<p>" + esc(pt) + "</p>"; }).join("");
           refBtn.insertAdjacentElement("afterend", div);
           refBtn.textContent = "📖 收起参考答案";
         }
@@ -718,6 +813,12 @@
     $("#btn-next", pane).addEventListener("click", function () { goTo(state.current + 1); });
     var flagBtn = $("#btn-flag", pane);
     if (flagBtn) flagBtn.addEventListener("click", toggleFlag);
+    var annoBtn = $("#btn-anno", pane);
+    if (annoBtn) annoBtn.addEventListener("click", function () {
+      state.annotMode = !state.annotMode;
+      renderQuestion();
+    });
+    setupAnnotation(pane, item);
     var matHead = $("#material-head", pane);
     if (matHead) {
       matHead.addEventListener("click", function () {
@@ -725,6 +826,87 @@
       });
     }
     updateAccChip();
+  }
+
+  /* 题干批注：圈画 / 高亮 / 橡皮 */
+  function setupAnnotation(pane, item) {
+    var qc = $("#q-content", pane);
+    var canvas = $("#annot-canvas", pane);
+    if (!qc || !canvas) return;
+    var ctx = canvas.getContext("2d");
+    function redraw() {
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      var strokes = state.annots[item.idx] || [];
+      strokes.forEach(function (st) {
+        if (!st.pts || st.pts.length < 1) return;
+        ctx.globalAlpha = st.tool === "highlight" ? 0.45 : 1;
+        ctx.strokeStyle = st.color;
+        ctx.lineWidth = st.width;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(st.pts[0].x, st.pts[0].y);
+        for (var i = 1; i < st.pts.length; i++) ctx.lineTo(st.pts[i].x, st.pts[i].y);
+        ctx.stroke();
+        if (st.tool === "eraser" && st.pts.length === 1) {
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.arc(st.pts[0].x, st.pts[0].y, st.width / 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+      ctx.globalAlpha = 1;
+    }
+    function sizeCanvas() {
+      canvas.width = Math.max(1, qc.clientWidth);
+      canvas.height = Math.max(1, qc.scrollHeight);
+      redraw();
+    }
+    sizeCanvas();
+    // 内容变化时重新定位（图片加载等）
+    var imgs = $$("img", qc);
+    imgs.forEach(function (im) {
+      if (im.complete) return;
+      im.addEventListener("load", sizeCanvas);
+    });
+    var drawing = null;
+    canvas.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      var tool = state.annotTool;
+      var color = tool === "eraser" ? "#ffffff" : state.annotColor;
+      var width = tool === "highlight" ? 26 : (tool === "eraser" ? 24 : 3);
+      drawing = { tool: tool, color: color, width: width, pts: [{ x: e.offsetX, y: e.offsetY }] };
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      state.annots[item.idx] = state.annots[item.idx] || [];
+      state.annots[item.idx].push(drawing);
+      redraw();
+    });
+    canvas.addEventListener("pointermove", function (e) {
+      if (!drawing) return;
+      drawing.pts.push({ x: e.offsetX, y: e.offsetY });
+      redraw();
+    });
+    function endStroke() { drawing = null; }
+    canvas.addEventListener("pointerup", endStroke);
+    canvas.addEventListener("pointercancel", endStroke);
+    // 工具栏
+    $$(".annot-swatch", pane).forEach(function (b) {
+      b.addEventListener("click", function () {
+        state.annotColor = b.dataset.color;
+        $$(".annot-swatch", pane).forEach(function (x) { x.classList.remove("active"); });
+        b.classList.add("active");
+      });
+    });
+    $$(".annot-tool-btn", pane).forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (b.id === "annot-clear") { state.annots[item.idx] = []; redraw(); return; }
+        if (b.id === "annot-done") { state.annotMode = false; renderQuestion(); return; }
+        state.annotTool = b.dataset.tool;
+        $$(".annot-tool-btn", pane).forEach(function (x) { x.classList.remove("active"); });
+        b.classList.add("active");
+      });
+    });
   }
 
   function updateFeedbackBtn() {
@@ -747,6 +929,8 @@
   }
   function goTo(idx) {
     if (idx < 0 || idx >= state.flat.list.length) return;
+    if (state.autoAdvance) { clearTimeout(state.autoAdvance); state.autoAdvance = null; }
+    if (state.paused) { state.paused = false; updateTimerUI(); }
     state.current = idx;
     renderQuestion();
     renderSheet();
@@ -957,17 +1141,16 @@
           '<span class="review-result-tag ' + tagCls + '">' + tag + "</span>" +
           (state.flags.indexOf(it.idx) >= 0 ? '<span class="q-type" style="background:var(--orange-light);color:#d97706">⛳ 标记</span>' : "") +
         "</div>";
-      html += '<div class="review-stem">' + esc(stemDisplay(q)) + "</div>";
-
-      if (q.image) {
-        html += '<div class="q-image"><img src="' + q.image.src + '" loading="lazy"><div class="q-image-caption">原卷第 ' + q.image.page + " 页截图</div></div>";
-      }
       if (q.materialId) {
         var mat = sec.materials.find(function (m) { return m.id === q.materialId; });
         if (mat) {
-          html += '<details class="material-panel" style="margin-top:12px"><summary class="material-head" style="cursor:pointer">📋 材料</summary><div class="material-body" style="display:block;padding-top:6px">' + esc(mat.text) + "</div></details>";
+          html += '<details class="material-panel" style="margin-top:0"><summary class="material-head" style="cursor:pointer">📋 材料</summary><div class="material-body" style="display:block;padding-top:6px">' + esc(mat.text) + "</div></details>";
         }
       }
+      if (q.image) {
+        html += '<div class="q-image"><img src="' + q.image.src + '" loading="lazy"><div class="q-image-caption">原卷第 ' + q.image.page + " 页截图</div></div>";
+      }
+      html += '<div class="review-stem">' + renderStem(stemDisplay(q)) + "</div>";
 
       if (isObj && q.options.length) {
         html += '<div class="review-options">';
@@ -997,14 +1180,16 @@
           '<div class="review-answers"><span class="my">我的作答：</span></div>' +
           '<div class="analysis-box"><pre style="white-space:pre-wrap">' + esc(val || "（未作答）") + "</pre></div>";
         if (q.refAnswer) {
+          var refParas = toParagraphs(q.refAnswer, "ref");
           html +=
             '<details class="ref-answer"><summary>📖 查看参考答案</summary>' +
-            '<div class="ref-answer-content">' + esc(q.refAnswer) + "</div></details>";
+            '<div class="ref-answer-content">' + refParas.map(function (pt) { return "<p>" + esc(pt) + "</p>"; }).join("") + "</div></details>";
         }
       }
 
       if (q.analysis) {
-        html += '<div class="analysis-box"><div class="analysis-title">解析</div><pre>' + esc(q.analysis) + "</pre></div>";
+        var ap = toParagraphs(q.analysis, "analysis");
+        html += '<div class="analysis-box"><div class="analysis-title">解析</div>' + ap.map(function (pt) { return '<div class="ana-para">' + esc(pt) + "</div>"; }).join("") + "</div>";
       }
       html += "</div>";
       list.insertAdjacentHTML("beforeend", html);
