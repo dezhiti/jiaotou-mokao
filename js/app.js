@@ -1372,6 +1372,12 @@
       document.body.innerHTML = "<div style='padding:40px;text-align:center'>数据加载失败，请确认 js/data.js 存在</div>";
       return;
     }
+    if (window.__jtLicense) {
+      // 等待授权模块验证通过后启动（license.js 会调用 __onLicenseOk）
+      window.__onLicenseOk = function () { bindEvents(); renderHome(); };
+      if (window.__licenseReady) window.__onLicenseOk();
+      return;
+    }
     bindEvents();
     renderHome();
   }
