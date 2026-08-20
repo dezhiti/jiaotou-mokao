@@ -396,6 +396,9 @@
     if (q.image) {
       html += '<div class="q-image"><img src="' + q.image.src + '" loading="lazy"><div class="q-image-caption">原卷第 ' + q.image.page + " 页截图</div></div>";
     }
+    if (q.stemImage) {
+      html += '<div class="q-figure"><img src="' + q.stemImage + '" alt="题干图"></div>';
+    }
     var wbOpts = q.options;
     if (q.figParts && (q.figParts.kind === "opts" || q.figParts.kind === "split")) {
       var wopts = q.figParts.kind === "opts" ? q.figParts.srcs : q.figParts.opts;
@@ -419,6 +422,9 @@
         '<span style="margin:0 10px;color:var(--gray)">|</span>' +
         '<span class="right">正确答案：' + esc(rightTxt) + "</span>" +
       "</div>";
+    if (q.answerImage) {
+      html += '<div class="analysis-box"><div class="analysis-title">参考答案</div><img src="' + q.answerImage + '" alt="参考答案图" style="max-width:100%;border-radius:6px"></div>';
+    }
     if (q.analysis) {
       var ap = toParagraphs(q.analysis, "analysis");
       html += '<div class="analysis-box"><div class="analysis-title">解析</div>' + ap.map(function (pt) { return '<div class="ana-para">' + esc(pt) + "</div>"; }).join("") + "</div>";
@@ -637,7 +643,9 @@
         materialHtml =
           '<div class="material-panel open" id="material-panel">' +
             '<div class="material-head" id="material-head"><span>📋 材料</span><span class="arrow">▾</span></div>' +
-            '<div class="material-body">' + esc(mat.text) + "</div>" +
+            '<div class="material-body">' + esc(mat.text || "") +
+            (mat.image ? '<div class="material-img" style="margin-top:10px"><img src="' + mat.image + '" alt="材料图" style="max-width:100%;border:1px solid var(--border);border-radius:6px"></div>' : "") +
+            "</div>" +
           "</div>";
       }
     }
@@ -647,6 +655,12 @@
     if (q.image) {
       var cap = q.image.kind === "chart" ? "资料图表（原卷第 " + q.image.page + " 页）" : "本题含图片 · 原卷第 " + q.image.page + " 页截图（可能包含相邻题目）";
       imageHtml = '<div class="q-image"><img src="' + q.image.src + '" alt="原题图片" loading="lazy"><div class="q-image-caption">' + cap + "</div></div>";
+    }
+
+    // 题干图片（用户截图作为题干）
+    var stemImageHtml = "";
+    if (q.stemImage) {
+      stemImageHtml = '<div class="q-figure"><img src="' + q.stemImage + '" alt="题干图"></div>';
     }
 
     // 图形推理：题目图 / 选项图
@@ -673,7 +687,7 @@
       var uniq = []; letters.forEach(function (L) { if (uniq.indexOf(L) < 0) uniq.push(L); });
       if (uniq.length < 2) uniq = ["A", "B", "C", "D"];
       optsData = uniq.map(function (L) {
-        return { key: L, text: "（图片选项，请在原图中选择后点选字母作答）" };
+        return { key: L, text: q.pureOptions ? "" : "（图片选项，请在原图中选择后点选字母作答）" };
       });
     }
 
@@ -710,7 +724,7 @@
       if (feedbackOn && sec.type === "multiple" && !locked) {
         optionsHtml += '<button class="btn btn-primary btn-confirm-multi" id="btn-confirm-multi">确认答案</button>';
       }
-      if (feedbackOn && !q.options.length && !(q.figParts && (q.figParts.kind === "opts" || q.figParts.kind === "split"))) {
+      if (feedbackOn && !q.options.length && !(q.figParts && (q.figParts.kind === "opts" || q.figParts.kind === "split")) && !q.pureOptions) {
         optionsHtml += '<div style="font-size:12px;color:var(--gray);margin-top:8px">本题选项为图片，请在图片中查看选项内容，再点击对应字母作答。</div>';
       }
       if (locked) {
@@ -770,6 +784,7 @@
         materialHtml +
         imageHtml +
         stemHtml +
+        stemImageHtml +
         figHtml +
         optionsHtml +
         feedbackHtml +
@@ -1180,8 +1195,13 @@
       if (q.materialId) {
         var mat = sec.materials.find(function (m) { return m.id === q.materialId; });
         if (mat) {
-          html += '<details class="material-panel" style="margin-top:0"><summary class="material-head" style="cursor:pointer">📋 材料</summary><div class="material-body" style="display:block;padding-top:6px">' + esc(mat.text) + "</div></details>";
+          html += '<details class="material-panel" style="margin-top:0"><summary class="material-head" style="cursor:pointer">📋 材料</summary><div class="material-body" style="display:block;padding-top:6px">' + esc(mat.text || "") +
+            (mat.image ? '<div style="margin-top:8px"><img src="' + mat.image + '" alt="材料图" style="max-width:100%;border:1px solid var(--border);border-radius:6px"></div>' : "") +
+            "</div></details>";
         }
+      }
+      if (q.stemImage) {
+        html += '<div class="q-figure"><img src="' + q.stemImage + '" alt="题干图"></div>';
       }
       if (q.image) {
         html += '<div class="q-image"><img src="' + q.image.src + '" loading="lazy"><div class="q-image-caption">原卷第 ' + q.image.page + " 页截图</div></div>";
@@ -1223,6 +1243,9 @@
         }
       }
 
+      if (q.answerImage) {
+        html += '<div class="analysis-box"><div class="analysis-title">参考答案</div><img src="' + q.answerImage + '" alt="参考答案图" style="max-width:100%;border-radius:6px"></div>';
+      }
       if (q.analysis) {
         var ap = toParagraphs(q.analysis, "analysis");
         html += '<div class="analysis-box"><div class="analysis-title">解析</div>' + ap.map(function (pt) { return '<div class="ana-para">' + esc(pt) + "</div>"; }).join("") + "</div>";
