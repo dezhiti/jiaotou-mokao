@@ -171,7 +171,7 @@
     return q.stem;
   }
   /* 选词填空：把同一行内的空格还原为横线填空位置（换行处的空格是排版残留，不处理） */
-  var FILL_RE = /([\u4e00-\u9fff，。；：、？！])(\s+)([\u4e00-\u9fff，。；：、？！])/g;
+  var FILL_RE = /(^|[\u4e00-\u9fff，。；：、？！])(\s+)([\u4e00-\u9fff，。；：、？！])/g;
   function renderStem(stem, force) {
     var html = esc(stem);
     if (force || /填入|填人|横线|最恰当|应填/.test(stem)) {
@@ -382,7 +382,7 @@
     var html = '<div class="review-card wb-card">';
     html +=
       '<div class="review-q-head">' +
-        '<span class="q-num" style="font-size:16px">' + (entry.idx + 1) + ".</span>" +
+        '<span class="q-num" style="font-size:16px">' + (q.groupN ? q.groupN + "." : (entry.idx + 1) + ".") + "</span>" +
         '<span class="q-type type-' + sec.type + '">' + typeName(sec) + "</span>" +
         '<span class="review-result-tag tag-wrong">错题</span>' +
         '<span class="q-type" style="background:var(--red-light);color:var(--red)">答错 ' + entry.wrongCount + ' 次</span>' +
@@ -733,9 +733,13 @@
         var c = isCorrect(sec, q, val);
         var rightTxt = sec.type === "judge" ? (q.answer === "A" ? "A（正确）" : "B（错误）") : String(q.answer);
         var paras = toParagraphs(q.analysis, "analysis");
-        var anaHtml = paras.length
-          ? '<div class="analysis-box"><div class="analysis-title">参考答案与解析</div>' + paras.map(function (pt) { return '<div class="ana-para">' + esc(pt) + "</div>"; }).join("") + "</div>"
-          : "";
+        var anaHtml = "";
+        if (paras.length) {
+          anaHtml = '<div class="analysis-box"><div class="analysis-title">参考答案与解析</div>' + paras.map(function (pt) { return '<div class="ana-para">' + esc(pt) + "</div>"; }).join("") + "</div>";
+        }
+        if (q.answerImage) {
+          anaHtml += '<div class="analysis-box"><div class="analysis-title">参考答案</div><img src="' + q.answerImage + '" alt="参考答案图" style="max-width:100%;border-radius:6px"></div>';
+        }
         feedbackHtml =
           (c === true
             ? '<div class="q-feedback correct">✓ 回答正确！</div>'
@@ -775,7 +779,7 @@
 
     pane.innerHTML =
       '<div class="q-head">' +
-        '<span class="q-num">' + (item.idx + 1) + ".</span>" +
+        '<span class="q-num">' + (q.groupN ? q.groupN + "." : (item.idx + 1) + ".") + "</span>" +
         '<span class="q-type type-' + sec.type + '">' + typeName(sec) + "</span>" +
         '<span class="q-type" style="background:var(--gray-light);color:var(--gray)">' + (isSubj ? "主观题" : "客观题 " + (SCORE[sec.type] || 0) + "分") + "</span>" +
         '<button class="q-flag-btn ' + annoCls + '" id="btn-anno">✏️ 批注</button>' +
@@ -1189,7 +1193,7 @@
       var html = '<div class="review-card">';
       html +=
         '<div class="review-q-head">' +
-          '<span class="q-num" style="font-size:16px">' + (it.idx + 1) + ".</span>" +
+          '<span class="q-num" style="font-size:16px">' + (q.groupN ? q.groupN + "." : (it.idx + 1) + ".") + "</span>" +
           '<span class="q-type type-' + sec.type + '">' + typeName(sec) + "</span>" +
           '<span class="review-result-tag ' + tagCls + '">' + tag + "</span>" +
           (state.flags.indexOf(it.idx) >= 0 ? '<span class="q-type" style="background:var(--orange-light);color:#d97706">⛳ 标记</span>' : "") +
