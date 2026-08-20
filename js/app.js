@@ -172,9 +172,9 @@
   }
   /* 选词填空：把同一行内的空格还原为横线填空位置（换行处的空格是排版残留，不处理） */
   var FILL_RE = /([\u4e00-\u9fff，。；：、？！])(\s+)([\u4e00-\u9fff，。；：、？！])/g;
-  function renderStem(stem) {
+  function renderStem(stem, force) {
     var html = esc(stem);
-    if (/填入|填人|横线|最恰当|应填/.test(stem)) {
+    if (force || /填入|填人|横线|最恰当|应填/.test(stem)) {
       html = html.replace(FILL_RE, function (m, a, sp, b) {
         if (sp.indexOf("\n") >= 0) return a + sp + b;
         return a + '<span class="blank"></span>' + b;
@@ -215,7 +215,9 @@
 
   /* 判定对错 */
   function isCorrect(sec, q, val) {
-    if (!isObjective(sec) || !q.answer) return null;   // 主观题不判分
+    if (!isObjective(sec)) return null;                 // 主观题不判分
+    if (q.allCorrect) return !!val;                     // 缺失题：选了就对
+    if (!q.answer) return null;
     if (!isAnswered(sec, q, val)) return null;          // 未作答
     if (sec.type === "multiple") {
       var a = val.slice().sort().join(""), b = String(q.answer).split("").sort().join("");
@@ -392,7 +394,7 @@
     } else if (q.figParts && q.figParts.kind === "figs") {
       html += '<div class="q-figure-strip">' + q.figParts.srcs.map(function (s) { return '<img src="' + s + '" alt="图形">'; }).join("") + "</div>";
     }
-    html += '<div class="review-stem">' + renderStem(stemDisplay(q)) + "</div>";
+    html += '<div class="review-stem">' + renderStem(stemDisplay(q), q.forceBlanks) + "</div>";
     if (q.image) {
       html += '<div class="q-image"><img src="' + q.image.src + '" loading="lazy"><div class="q-image-caption">原卷第 ' + q.image.page + " 页截图</div></div>";
     }
@@ -633,7 +635,7 @@
     var flagTxt = state.flags.indexOf(item.idx) >= 0 ? "已标记" : "标记";
     var annoCls = state.annotMode ? "anno-on" : "";
 
-    var stemHtml = '<div class="q-stem">' + renderStem(stemDisplay(q)) + "</div>";
+    var stemHtml = '<div class="q-stem">' + renderStem(stemDisplay(q), q.forceBlanks) + "</div>";
 
     // 材料（置于题干上方）
     var materialHtml = "";
@@ -1206,7 +1208,7 @@
       if (q.image) {
         html += '<div class="q-image"><img src="' + q.image.src + '" loading="lazy"><div class="q-image-caption">原卷第 ' + q.image.page + " 页截图</div></div>";
       }
-      html += '<div class="review-stem">' + renderStem(stemDisplay(q)) + "</div>";
+      html += '<div class="review-stem">' + renderStem(stemDisplay(q), q.forceBlanks) + "</div>";
 
       if (isObj && q.options.length) {
         html += '<div class="review-options">';
